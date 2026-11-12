@@ -1,8 +1,8 @@
 <div align="center">
 
-<br>
-
 # 🔥 TriageKit 🔥
+
+<br>
 
 ### Advanced Security Triage & Code Intelligence
 
@@ -29,6 +29,8 @@ TriageKit is an open-source security analysis platform combining static analysis
 [Overview](#overview) · [Features](#features) · [Architecture](#architecture) · [Installation](#installation) · [Usage](#usage) · [Documentation](#documentation) · [Support](#support--sponsorship)
 
 <br>
+
+<img src="docs/screenshots/BANNER.png" alt="TriageKit — Comprehensive Security Analysis" width="100%">
 
 </div>
 
