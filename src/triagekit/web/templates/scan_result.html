@@ -1,0 +1,352 @@
+{% extends "base.html" %}
+{% block extra_head %}
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/jstree/3.3.16/themes/default-dark/style.min.css" />
+<style>
+  /* jsTree dark theme polish */
+  .jstree-default-dark{background:transparent}
+  #jstree-findings{
+    background:#0b1220;border:1px solid #1f2a3d;border-radius:12px;
+    padding:.75rem 1rem;max-height:560px;overflow:auto;
+    font-size:.88rem;
+  }
+  #jstree-findings .jstree-anchor{color:#e5e7eb;border-radius:6px}
+  #jstree-findings .jstree-clicked{background:rgba(99,102,241,.2)!important;color:#fff}
+  #jstree-findings .jstree-hovered{background:rgba(99,102,241,.12)!important}
+  #jstree-findings .jstree-icon.jstree-themeicon{display:none}
+  .jt-badge{display:inline-flex;gap:.2rem;margin-left:.4rem;vertical-align:middle}
+  .jt-badge span{
+    font-size:.62rem;font-weight:700;padding:.08rem .32rem;border-radius:999px;
+    font-family:Inter,system-ui,sans-serif;
+  }
+  .jt-c{background:rgba(239,68,68,.22);color:#fca5a5}
+  .jt-h{background:rgba(249,115,22,.22);color:#fdba74}
+  .jt-m{background:rgba(234,179,8,.18);color:#fde68a}
+  .jt-l{background:rgba(34,197,94,.18);color:#86efac}
+  .jt-finding{color:#9ca3af;font-size:.82rem}
+  .jt-sev{font-size:.6rem;font-weight:700;padding:.06rem .28rem;border-radius:4px;margin-right:.3rem;
+    font-family:Inter,system-ui,sans-serif;text-transform:uppercase}
+  .jt-sev-critical{background:rgba(239,68,68,.25);color:#fca5a5}
+  .jt-sev-high{background:rgba(249,115,22,.25);color:#fdba74}
+  .jt-sev-medium{background:rgba(234,179,8,.2);color:#fde68a}
+  .jt-sev-low{background:rgba(34,197,94,.2);color:#86efac}
+  .tree-toolbar{display:flex;flex-wrap:wrap;gap:.5rem;align-items:center;margin-bottom:.75rem}
+  .tree-legend{margin-left:auto;font-size:.75rem;color:#9ca3af;display:flex;gap:.35rem;align-items:center}
+</style>
+<textarea id="md-export" hidden>{{ markdown or "" }}</textarea>
+{% endblock %}
+
+{% block title %}Scan · {{ target }} — TriageKit{% endblock %}
+{% block content %}
+<div class="page-head">
+  <a href="/" class="back">← Dashboard</a>
+  <div class="title-row">
+    <h1>Repo Scan</h1>
+    <span class="repo-chip">{{ target }}</span>
+  </div>
+  {% if result %}
+  <p class="verdict">{{ result.summary }}</p>
+  {% endif %}
+</div>
+
+{% if error %}
+<div class="alert">{{ error }}</div>
+{% elif result and counts %}
+
+<div class="stats-grid">
+  <div class="stat-card risk-card {% if counts.critical %}risk-critical{% elif counts.high %}risk-high{% elif counts.medium %}risk-medium{% else %}risk-low{% endif %}">
+    <div class="stat-label">Security score</div>
+    <div class="stat-big">{{ result.score }}<span style="font-size:1rem;opacity:.7">/100</span></div>
+    <div class="stat-sub">Grade {{ result.grade }} · {{ result.files_scanned }} files</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Static findings</div>
+    <div class="stat-big">{{ result.findings|length }}</div>
+    <div class="stat-sub">injection · secrets · crypto</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">CVE / advisories</div>
+    <div class="stat-big">{{ result.cve_findings|length }}</div>
+    <div class="stat-sub">{% if no_cve %}skipped{% else %}OSV lookup{% endif %}</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Manifests</div>
+    <div class="stat-big">{{ result.dependency_files|length }}</div>
+    <div class="stat-sub">dependency files</div>
+  </div>
+</div>
+
+<div class="counter-bar">
+  <div class="counter-item"><span class="dot crit"></span><span class="num">{{ counts.critical }}</span><span class="lbl">Critical</span></div>
+  <div class="counter-item"><span class="dot high"></span><span class="num">{{ counts.high }}</span><span class="lbl">High</span></div>
+  <div class="counter-item"><span class="dot med"></span><span class="num">{{ counts.medium }}</span><span class="lbl">Medium</span></div>
+  <div class="counter-item"><span class="dot low"></span><span class="num">{{ counts.low }}</span><span class="lbl">Low</span></div>
+</div>
+
+<div class="workspace">
+  <aside class="tree-panel">
+    <div class="tree-title">Scan Chain</div>
+    <ul class="tree">
+      <li class="tree-node open">
+        <button type="button" class="tree-toggle" data-target="sec-agent"><span class="chev">▾</span> Security agent</button>
+      </li>
+      <li class="tree-node open">
+        <button type="button" class="tree-toggle" data-target="sec-tree"><span class="chev">▾</span> Directory tree</button>
+      </li>
+      <li class="tree-node open">
+        <button type="button" class="tree-toggle" data-target="sec-static"><span class="chev">▾</span> Static findings <span class="tree-badge">{{ result.findings|length }}</span></button>
+      </li>
+      <li class="tree-node open">
+        <button type="button" class="tree-toggle" data-target="sec-cve"><span class="chev">▾</span> CVEs <span class="tree-badge">{{ result.cve_findings|length }}</span></button>
+      </li>
+      <li class="tree-node">
+        <button type="button" class="tree-toggle" data-target="sec-deps"><span class="chev">▸</span> Manifests <span class="tree-badge">{{ result.dependency_files|length }}</span></button>
+      </li>
+    </ul>
+    <button type="button" class="btn-ghost full" onclick="copyMd()">Copy full report</button>
+    <button type="button" class="btn-ghost full" onclick="downloadMd()">Export Markdown</button>
+    <a href="/" class="btn-ghost full" style="display:block;text-align:center;margin-top:0.5rem;text-decoration:none">New scan</a>
+  </aside>
+
+  <div class="content-panel">
+    
+{% if agent %}
+<section class="block agent-block" id="sec-agent">
+  <div class="block-head"><h2>Security agent brief</h2>
+    <span class="block-tag risk-{{ agent.overall_risk | default('medium') }}">{{ agent.overall_risk | default('medium') }} risk</span>
+  </div>
+  <div class="block-body">
+    <p class="lead">{{ agent.executive_summary }}</p>
+    {% if agent.attack_surface %}
+    <div class="subhead">Attack surface</div>
+    <ul class="bullet-list">
+      {% for a in agent.attack_surface %}<li>{{ a }}</li>{% endfor %}
+    </ul>
+    {% endif %}
+    {% if agent.priority_fixes %}
+    <div class="subhead">Priority fixes</div>
+    <div class="accordion">
+      {% for pf in agent.priority_fixes %}
+      <details class="acc-item sev-high" {% if loop.index <= 3 %}open{% endif %}>
+        <summary>
+          <span class="acc-sev">P{{ pf.priority }}</span>
+          <span class="acc-title">{{ pf.title }}</span>
+          <span class="acc-effort">{{ pf.effort | default('') }} effort</span>
+        </summary>
+        <div class="acc-body">
+          {% if pf.why %}<p>{{ pf.why }}</p>{% endif %}
+          <div class="rec"><div class="rec-label">How to fix</div><p>{{ pf.how }}</p></div>
+        </div>
+      </details>
+      {% endfor %}
+    </div>
+    {% endif %}
+    {% if agent.quick_wins %}
+    <div class="subhead">Quick wins</div>
+    <ul class="bullet-list">{% for q in agent.quick_wins %}<li>{{ q }}</li>{% endfor %}</ul>
+    {% endif %}
+    {% if agent.residual_risk %}
+    <div class="subhead">Residual risk</div>
+    <p>{{ agent.residual_risk }}</p>
+    {% endif %}
+    {% if agent.recommended_next_tools %}
+    <div class="subhead">Recommended next tools</div>
+    <ul class="bullet-list">{% for t in agent.recommended_next_tools %}<li>{{ t }}</li>{% endfor %}</ul>
+    {% endif %}
+  </div>
+</section>
+{% endif %}
+
+    
+
+
+{% if finding_tree %}
+<section class="block" id="sec-tree">
+  <div class="block-head">
+    <h2>Directory tree</h2>
+    <span class="block-tag">jsTree</span>
+  </div>
+  <div class="block-body">
+    <div class="tree-toolbar">
+      <button type="button" class="hint-chip" id="tree-expand">Expand all</button>
+      <button type="button" class="hint-chip" id="tree-collapse">Collapse all</button>
+      <span class="tree-legend">
+        <span class="tb crit">C</span> critical
+        <span class="tb high">H</span> high
+        <span class="tb med">M</span> medium
+        <span class="tb low">L</span> low
+      </span>
+    </div>
+    <div id="jstree-findings"></div>
+  </div>
+</section>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.7.1/jquery.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jstree/3.3.16/jstree.min.js"></script>
+<script>
+(function(){
+  const data = {{ finding_tree | tojson }};
+  if (!data || !window.jQuery) return;
+
+  function badges(c) {
+    if (!c) return '';
+    let h = '<span class="jt-badge">';
+    if (c.critical) h += '<span class="jt-c">C '+c.critical+'</span>';
+    if (c.high) h += '<span class="jt-h">H '+c.high+'</span>';
+    if (c.medium) h += '<span class="jt-m">M '+c.medium+'</span>';
+    if (c.low) h += '<span class="jt-l">L '+c.low+'</span>';
+    return h + '</span>';
+  }
+
+  function toJsTree(node, depth) {
+    depth = depth || 0;
+    const hasKids = node.children && node.children.length;
+    const isRoot = depth === 0;
+    const textName = isRoot ? ('project' + (node.name && node.name !== '.' ? '/' + node.name : '')) : node.name;
+    const label = (hasKids || isRoot)
+      ? ('📁 ' + textName + (String(textName).endsWith('/') ? '' : (hasKids||isRoot?'/':'')))
+      : ('📄 ' + textName);
+
+    const children = [];
+    (node.children || []).forEach(ch => children.push(toJsTree(ch, depth + 1)));
+
+    if (!hasKids && node.findings && node.findings.length) {
+      const sorted = node.findings.slice().sort((a,b) => {
+        const o = {critical:0, high:1, medium:2, low:3};
+        return (o[a.severity]||9) - (o[b.severity]||9);
+      });
+      sorted.slice(0, 8).forEach(f => {
+        const loc = f.line ? (' · L' + f.line) : '';
+        children.push({
+          text: '<span class="jt-finding"><span class="jt-sev jt-sev-' + (f.severity||'low') + '">' +
+                (f.severity||'').toUpperCase() + '</span>' + (f.title||'issue') + loc + '</span>',
+          icon: false,
+          li_attr: { class: 'jt-finding-node' }
+        });
+      });
+      if (sorted.length > 8) {
+        children.push({ text: '… +' + (sorted.length - 8) + ' more', icon: false, state: { disabled: true } });
+      }
+    }
+
+    return {
+      text: label + badges(node.counts),
+      children: children,
+      state: { opened: depth < 2 },
+      icon: false,
+      li_attr: { class: hasKids || isRoot ? 'jt-dir' : 'jt-file' }
+    };
+  }
+
+  const treeData = [toJsTree(data, 0)];
+  const $el = $('#jstree-findings');
+  $el.jstree({
+    core: {
+      data: treeData,
+      themes: { name: 'default-dark', dots: true, icons: false },
+      expand_selected_onload: true,
+      worker: false
+    }
+  });
+
+  $('#tree-expand').on('click', function(){ $el.jstree('open_all'); });
+  $('#tree-collapse').on('click', function(){
+    $el.jstree('close_all');
+    // reopen root
+    const root = $el.jstree(true).get_node('#');
+    if (root && root.children && root.children[0]) {
+      $el.jstree('open_node', root.children[0]);
+    }
+  });
+})();
+</script>
+{% endif %}
+
+    <section class="block" id="sec-static">
+      <div class="block-head"><h2>Static findings</h2><span class="block-tag">{{ result.findings|length }}</span></div>
+      <div class="block-body">
+        <p class="muted" style="margin-bottom:0.75rem">Showing findings sorted by severity. Intentionally vulnerable training apps will score low by design.</p>
+        {% if result.findings %}
+        <div class="accordion">
+          {% for f in result.findings[:200] %}
+          <details class="acc-item sev-{{ f.severity }}" {% if loop.index <= 3 %}open{% endif %}>
+            <summary>
+              <span class="acc-sev">{{ f.severity }}</span>
+              <span class="acc-cat">{{ f.category }}</span>
+              <span class="acc-title">{{ f.title }}</span>
+              <span class="acc-file">{{ f.file }}{% if f.line %}:{{ f.line }}{% endif %}</span>
+            </summary>
+            <div class="acc-body">
+              {% if f.snippet %}<div class="file-line">{{ f.snippet }}</div>{% endif %}
+              {% if f.recommendation %}
+              <div class="rec"><div class="rec-label">Recommendation</div><p>{{ f.recommendation }}</p></div>
+              {% endif %}
+              {% if f.cwe %}<div class="cwe">{{ f.cwe }}</div>{% endif %}
+            </div>
+          </details>
+          {% endfor %}
+        </div>
+        {% if result.findings|length > 200 %}<p class="muted">Showing top 200 of {{ result.findings|length }} findings. Use CLI <code>--json</code> for full export.</p>{% endif %}
+        {% else %}
+        <p class="muted">No static heuristic findings in scanned source files.</p>
+        {% endif %}
+      </div>
+    </section>
+
+    <section class="block" id="sec-cve">
+      <div class="block-head"><h2>CVE / advisories (OSV)</h2><span class="block-tag">{{ result.cve_findings|length }}</span></div>
+      <div class="block-body">
+        {% if result.cve_findings %}
+        <div class="accordion">
+          {% for cf in result.cve_findings %}
+          <details class="acc-item sev-{{ cf.severity or 'medium' }}" {% if loop.index <= 4 %}open{% endif %}>
+            <summary>
+              <span class="acc-sev">{{ cf.severity or 'medium' }}</span>
+              <span class="acc-cat">cve</span>
+              <span class="acc-title">{{ cf.id }} · {{ cf.package }}{% if cf.version %}@{{ cf.version }}{% endif %}</span>
+            </summary>
+            <div class="acc-body">
+              <p>{{ cf.summary }}</p>
+              <div class="file-line">Manifest: {{ cf.manifest }}</div>
+              {% if cf.fixed %}<p class="note">Fixed in: {{ cf.fixed }}</p>{% endif %}
+            </div>
+          </details>
+          {% endfor %}
+        </div>
+        {% else %}
+        <p class="muted">{% if no_cve %}CVE lookup was skipped.{% else %}No OSV hits for scanned packages (or no versioned manifests).{% endif %}</p>
+        {% endif %}
+      </div>
+    </section>
+
+    <section class="block" id="sec-deps">
+      <div class="block-head"><h2>Dependency manifests</h2></div>
+      <div class="block-body">
+        {% if result.dependency_files %}
+        <ul class="file-grid">
+          {% for d in result.dependency_files %}<li><code>{{ d }}</code></li>{% endfor %}
+        </ul>
+        {% else %}
+        <p class="muted">None found.</p>
+        {% endif %}
+        <p class="disclaimer">Heuristic static scan + OSV. Not a replacement for CodeQL, Semgrep, or a full audit.</p>
+      </div>
+    </section>
+  </div>
+</div>
+
+<div id="raw-md" hidden>{{ markdown }}</div>
+<script>
+document.querySelectorAll('.tree-toggle').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const id = btn.getAttribute('data-target');
+    const el = document.getElementById(id);
+    if (el) el.scrollIntoView({behavior:'smooth', block:'start'});
+  });
+});
+function downloadMd(){const t=document.getElementById('md-export')?.value||'';const b=new Blob([t],{type:'text/markdown'});const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='triagekit-scan.md';a.click();}
+function copyMd(){
+  const t = document.getElementById('raw-md')?.textContent || '';
+  navigator.clipboard.writeText(t).then(()=>alert('Report copied'));
+}
+</script>
+{% endif %}
+{% endblock %}

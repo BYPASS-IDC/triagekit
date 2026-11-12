@@ -1,0 +1,234 @@
+{% extends "base.html" %}
+{% block title %}Web Scan · {{ url }} — TriageKit{% endblock %}
+{% block content %}
+<div class="page-head">
+  <a href="/" class="back">← Dashboard</a>
+  <div class="title-row">
+    <h1>Website security adviser</h1>
+    <span class="repo-chip">{{ url }}</span>
+  </div>
+  {% if result %}<p class="verdict">{{ result.summary }}</p>{% endif %}
+</div>
+
+{% if error %}
+<div class="alert">{{ error }}</div>
+{% elif result and counts %}
+
+<div class="stats-grid">
+  <div class="stat-card risk-card {% if counts.critical %}risk-critical{% elif counts.high %}risk-high{% elif counts.medium %}risk-medium{% else %}risk-low{% endif %}">
+    <div class="stat-label">Score</div>
+    <div class="stat-big">{{ result.score }}<span style="font-size:1rem;opacity:.7">/100</span></div>
+    <div class="stat-sub">Grade {{ result.grade }} · HTTP {{ result.status_code }}</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Network</div>
+    <div class="stat-big">{{ result.network|length }}</div>
+    <div class="stat-sub">HTTP exchanges</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">JS / Forms</div>
+    <div class="stat-big">{{ result.js_files|length }} / {{ result.forms|length }}</div>
+    <div class="stat-sub">scripts · forms</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Findings</div>
+    <div class="stat-big">{{ result.findings|length }}</div>
+    <div class="stat-sub">{{ result.cookies|length }} cookies</div>
+  </div>
+</div>
+
+<div class="counter-bar">
+  <div class="counter-item"><span class="dot crit"></span><span class="num">{{ counts.critical }}</span><span class="lbl">Critical</span></div>
+  <div class="counter-item"><span class="dot high"></span><span class="num">{{ counts.high }}</span><span class="lbl">High</span></div>
+  <div class="counter-item"><span class="dot med"></span><span class="num">{{ counts.medium }}</span><span class="lbl">Medium</span></div>
+  <div class="counter-item"><span class="dot low"></span><span class="num">{{ counts.low }}</span><span class="lbl">Low</span></div>
+  <div class="counter-item spacer"></div>
+  <div class="counter-item"><span class="num">{{ result.endpoints|length }}</span><span class="lbl">Endpoints</span></div>
+  <div class="counter-item"><span class="num">{{ result.api_hints|length }}</span><span class="lbl">API hints</span></div>
+</div>
+
+<div class="workspace">
+  <aside class="tree-panel">
+    <div class="tree-title">Scan chain</div>
+    <ul class="tree">
+      <li class="tree-node open"><button type="button" class="tree-toggle" data-target="sec-playbook"><span class="chev">▾</span> Playbook <span class="tree-badge">{{ result.playbook|length }}</span></button></li>
+      <li class="tree-node open"><button type="button" class="tree-toggle" data-target="sec-findings"><span class="chev">▾</span> Findings <span class="tree-badge">{{ result.findings|length }}</span></button>
+        <ul class="tree-children">
+          {% for f in result.findings[:12] %}
+          <li><a href="#wf-{{ loop.index }}" class="tree-leaf sev-{{ f.severity }}">{{ f.title[:36] }}{% if f.title|length > 36 %}…{% endif %}</a></li>
+          {% endfor %}
+        </ul>
+      </li>
+      <li class="tree-node"><button type="button" class="tree-toggle" data-target="sec-network"><span class="chev">▸</span> Network <span class="tree-badge">{{ result.network|length }}</span></button></li>
+      <li class="tree-node"><button type="button" class="tree-toggle" data-target="sec-js"><span class="chev">▸</span> JavaScript <span class="tree-badge">{{ result.js_files|length }}</span></button></li>
+      <li class="tree-node"><button type="button" class="tree-toggle" data-target="sec-cookies"><span class="chev">▸</span> Cookies <span class="tree-badge">{{ result.cookies|length }}</span></button></li>
+      <li class="tree-node"><button type="button" class="tree-toggle" data-target="sec-forms"><span class="chev">▸</span> Forms <span class="tree-badge">{{ result.forms|length }}</span></button></li>
+      <li class="tree-node"><button type="button" class="tree-toggle" data-target="sec-endpoints"><span class="chev">▸</span> Endpoints <span class="tree-badge">{{ result.endpoints|length }}</span></button></li>
+    </ul>
+    <div class="export-bar" style="flex-direction:column">
+      <button type="button" class="btn-ghost full" onclick="copyMd()">Copy full report</button>
+      <button type="button" class="btn-ghost full" onclick="downloadMd()">Export Markdown</button>
+      <a href="/" class="btn-ghost full" style="display:block;text-align:center;text-decoration:none">New scan</a>
+    </div>
+  </aside>
+
+  <div class="content-panel">
+    {% if result.playbook %}
+    <section class="block agent-block" id="sec-playbook">
+      <div class="block-head"><h2>Remediation playbook</h2><span class="block-tag">priority order</span></div>
+      <div class="block-body">
+        <div class="accordion">
+          {% for p in result.playbook %}
+          <details class="acc-item sev-{{ p.severity }}" {% if loop.index <= 5 %}open{% endif %}>
+            <summary>
+              <span class="acc-sev">P{{ p.priority }}</span>
+              <span class="acc-cat">{{ p.severity }}</span>
+              <span class="acc-title">{{ p.title }}</span>
+              {% if p.cwe %}<span class="acc-file">{{ p.cwe }}</span>{% endif %}
+            </summary>
+            <div class="acc-body">
+              <pre class="finding-detail">{{ p.why }}</pre>
+              <div class="rec"><div class="rec-label">What to do</div><p>{{ p.fix }}</p></div>
+              {% if p.where %}<div class="file-line">{{ p.where }}</div>{% endif %}
+            </div>
+          </details>
+          {% endfor %}
+        </div>
+      </div>
+    </section>
+    {% endif %}
+
+    {% if agent %}
+    <section class="block agent-block">
+      <div class="block-head"><h2>Security agent</h2><span class="block-tag">{{ agent.overall_risk | default('medium') }}</span></div>
+      <div class="block-body">
+        <p class="lead">{{ agent.executive_summary }}</p>
+        {% if agent.priority_fixes %}
+        <div class="subhead">Priority fixes</div>
+        <ul class="bullet-list">{% for pf in agent.priority_fixes[:8] %}<li><strong>{{ pf.title }}</strong> — {{ pf.how }}</li>{% endfor %}</ul>
+        {% endif %}
+      </div>
+    </section>
+    {% endif %}
+
+    <section class="block" id="sec-findings">
+      <div class="block-head"><h2>Findings</h2><span class="block-tag">{{ result.findings|length }}</span></div>
+      <div class="block-body">
+        {% if result.findings %}
+        <div class="accordion">
+          {% for f in result.findings %}
+          <details class="acc-item sev-{{ f.severity }}" id="wf-{{ loop.index }}" {% if loop.index <= 6 %}open{% endif %}>
+            <summary>
+              <span class="acc-sev">{{ f.severity }}</span>
+              <span class="acc-cat">{{ f.category }}</span>
+              <span class="acc-title">{{ f.title }}</span>
+            </summary>
+            <div class="acc-body">
+              <pre class="finding-detail">{{ f.detail }}</pre>
+              {% if f.endpoint %}<div class="file-line">Path: {{ f.endpoint }}</div>{% endif %}
+              {% if f.evidence %}<div class="file-line">Evidence: {{ f.evidence }}</div>{% endif %}
+              {% if f.cwe %}<div class="file-line">{{ f.cwe }} · confidence {{ f.confidence }}</div>{% endif %}
+              <div class="rec"><div class="rec-label">What to do</div><p>{{ f.recommendation }}</p></div>
+            </div>
+          </details>
+          {% endfor %}
+        </div>
+        {% else %}<p class="muted">No findings.</p>{% endif %}
+      </div>
+    </section>
+
+    <section class="block" id="sec-network">
+      <div class="block-head"><h2>Network traffic</h2><span class="block-tag">{{ result.network|length }}</span></div>
+      <div class="block-body">
+        <div class="accordion">
+          {% for n in result.network[:60] %}
+          <details class="acc-item">
+            <summary>
+              <span class="acc-cat">{{ n.status }}</span>
+              <span class="acc-title"><code>{{ n.method }} {{ n.url }}</code></span>
+              <span class="acc-file">{{ n.bytes }}B · sc={{ n.set_cookie_count }}</span>
+            </summary>
+            <div class="acc-body"><p>Content-Type: {{ n.content_type or '—' }}{% if n.redirect_chain %} · Redirects: {{ n.redirect_chain|length }}{% endif %}</p>
+              {% if n.redirect_chain %}<pre class="finding-detail">{% for r in n.redirect_chain %}{{ r }}
+{% endfor %}</pre>{% endif %}
+            </div>
+          </details>
+          {% endfor %}
+        </div>
+      </div>
+    </section>
+
+    <section class="block" id="sec-js">
+      <div class="block-head"><h2>JavaScript</h2><span class="block-tag">{{ result.js_files|length }}</span></div>
+      <div class="block-body">
+        <ul class="bullet-list">{% for j in result.js_files %}<li><code>{{ j.url }}</code> — {{ j.bytes }}B · signals={{ j.findings }}</li>{% endfor %}</ul>
+        {% if result.api_hints %}
+        <div class="subhead">API / URL hints</div>
+        <ul class="file-grid">{% for h in result.api_hints[:40] %}<li><code>{{ h }}</code></li>{% endfor %}</ul>
+        {% endif %}
+      </div>
+    </section>
+
+    <section class="block" id="sec-cookies">
+      <div class="block-head"><h2>Cookies</h2><span class="block-tag">{{ result.cookies|length }}</span></div>
+      <div class="block-body">
+        <div class="accordion">
+          {% for ck in result.cookies %}
+          <details class="acc-item">
+            <summary><span class="acc-title"><code>{{ ck.name }}</code></span>
+              <span class="acc-file">{% if ck.secure %}Secure {% endif %}{% if ck.httponly %}HttpOnly {% endif %}{% if ck.samesite %}SameSite={{ ck.samesite }}{% endif %}</span>
+            </summary>
+            <div class="acc-body"><p>Domain={{ ck.domain or '—' }} · Path={{ ck.path or '/' }}</p></div>
+          </details>
+          {% endfor %}
+        </div>
+      </div>
+    </section>
+
+    <section class="block" id="sec-forms">
+      <div class="block-head"><h2>Forms / inbound</h2><span class="block-tag">{{ result.forms|length }}</span></div>
+      <div class="block-body">
+        <ul class="bullet-list">{% for fm in result.forms[:30] %}<li><code>{{ fm.method }} {{ fm.action }}</code> — {{ fm.inputs | join(', ') }}</li>{% endfor %}</ul>
+      </div>
+    </section>
+
+    <section class="block" id="sec-endpoints">
+      <div class="block-head"><h2>Endpoints</h2><span class="block-tag">{{ result.endpoints|length }}</span></div>
+      <div class="block-body">
+        <div class="accordion">
+          {% for ep in result.endpoints[:100] %}
+          <details class="acc-item">
+            <summary><span class="acc-cat">{{ ep.status }}</span><span class="acc-title"><code>{{ ep.method }} {{ ep.path }}</code></span><span class="acc-file">{{ ep.source }}</span></summary>
+          </details>
+          {% endfor %}
+        </div>
+        <p class="disclaimer">Authorized targets only. Safe active checks + static analysis — not a weaponized exploit tool.</p>
+      </div>
+    </section>
+  </div>
+</div>
+
+<textarea id="md-export" hidden>{{ markdown or '' }}</textarea>
+<script>
+document.querySelectorAll('.tree-toggle').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const id = btn.getAttribute('data-target');
+    const el = document.getElementById(id);
+    if (el) el.scrollIntoView({behavior:'smooth', block:'start'});
+  });
+});
+function copyMd(){
+  const t = document.getElementById('md-export')?.value || '';
+  navigator.clipboard.writeText(t).then(()=>alert('Report copied')).catch(()=>alert('Copy failed'));
+}
+function downloadMd(){
+  const t = document.getElementById('md-export')?.value || '';
+  const blob = new Blob([t], {type:'text/markdown'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'triagekit-webscan.md';
+  a.click();
+}
+</script>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,1 @@
+{"min_hits": 2, "require_any": ["cs-process", "cs-md5", "command-injection", "weak-hash-md5"]}

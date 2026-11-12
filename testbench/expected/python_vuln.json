@@ -1,0 +1,1 @@
+{"min_hits": 3, "require_any": ["py-os-system", "py-shell-true", "py-pickle", "py-md5", "command-injection"]}

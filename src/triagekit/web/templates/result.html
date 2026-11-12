@@ -1,0 +1,338 @@
+{% extends "base.html" %}
+{% block title %}PR #{{ number }} — TriageKit{% endblock %}
+{% block content %}
+<div class="page-head">
+  <a href="/" class="back">← Dashboard</a>
+  <div class="title-row">
+    <h1>PR #{{ number }}</h1>
+    <span class="repo-chip">{{ repo }}</span>
+  </div>
+  {% if result %}
+  <p class="verdict">{{ result.one_line_verdict }}</p>
+  {% endif %}
+</div>
+
+{% if error %}
+<div class="alert">{{ error }}</div>
+{% elif result %}
+
+<div class="stats-grid">
+  <div class="stat-card risk-card risk-{{ result.risk_level.value }}">
+    <div class="stat-label">Risk Level</div>
+    <div class="stat-big">{{ result.risk_level.value | upper }}</div>
+    <div class="stat-sub">{{ result.risk_score }}/10 blended score</div>
+    <div class="risk-meter"><div class="risk-meter-fill" style="width:{{ result.risk_score * 10 }}%"></div></div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Security Findings</div>
+    <div class="stat-big">{{ result.security_findings | length }}</div>
+    <div class="stat-sub">see chain tree →</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Suggestions</div>
+    <div class="stat-big">{{ result.suggestions | length }}</div>
+    <div class="stat-sub">fixes · cleanups · tests</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Confidence</div>
+    <div class="stat-big">{{ (result.confidence * 100) | int }}%</div>
+    <div class="stat-sub">{{ result.primary_change_type.value }} · {{ "breaking" if result.has_breaking_changes else "non-breaking" }}</div>
+  </div>
+</div>
+
+<div class="counter-bar">
+  <div class="counter-item"><span class="dot crit"></span><span class="num" id="c-crit">0</span><span class="lbl">Critical</span></div>
+  <div class="counter-item"><span class="dot high"></span><span class="num" id="c-high">0</span><span class="lbl">High</span></div>
+  <div class="counter-item"><span class="dot med"></span><span class="num" id="c-med">0</span><span class="lbl">Medium</span></div>
+  <div class="counter-item"><span class="dot low"></span><span class="num" id="c-low">0</span><span class="lbl">Low</span></div>
+  <div class="counter-item spacer"></div>
+  <div class="counter-item"><span class="num">{{ result.recommended_actions | length }}</span><span class="lbl">Actions</span></div>
+  <div class="counter-item"><span class="num">{{ result.critical_files_touched | length }}</span><span class="lbl">Critical files</span></div>
+  <div class="counter-item"><span class="num">{{ result.review_focus | length }}</span><span class="lbl">Review focus</span></div>
+</div>
+
+<div class="workspace">
+  <aside class="tree-panel">
+    <div class="tree-title">Analysis Chain</div>
+    <ul class="tree" id="chain-tree">
+      <li class="tree-node open">
+        <button type="button" class="tree-toggle" data-target="sec-overview"><span class="chev">▾</span> Overview</button>
+      </li>
+      <li class="tree-node open">
+        <button type="button" class="tree-toggle" data-target="sec-security"><span class="chev">▾</span> Security <span class="tree-badge">{{ result.security_findings | length }}</span></button>
+        <ul class="tree-children">
+          {% for sf in result.security_findings[:8] %}
+          <li><a href="#sf-{{ loop.index }}" class="tree-leaf sev-{{ sf.severity.value }}">{{ sf.title[:40] }}{% if sf.title|length > 40 %}…{% endif %}</a></li>
+          {% else %}
+          <li class="tree-empty">No findings</li>
+          {% endfor %}
+        </ul>
+      </li>
+      <li class="tree-node open">
+        <button type="button" class="tree-toggle" data-target="sec-suggestions"><span class="chev">▾</span> Suggestions <span class="tree-badge">{{ result.suggestions | length }}</span></button>
+        <ul class="tree-children">
+          {% for s in result.suggestions[:10] %}
+          <li><a href="#sug-{{ loop.index }}" class="tree-leaf sev-{{ s.severity.value }}">[{{ s.category.value }}] {{ s.title[:32] }}{% if s.title|length > 32 %}…{% endif %}</a></li>
+          {% else %}
+          <li class="tree-empty">None</li>
+          {% endfor %}
+        </ul>
+      </li>
+      <li class="tree-node">
+        <button type="button" class="tree-toggle" data-target="sec-risk"><span class="chev">▸</span> Risk factors <span class="tree-badge">{{ result.risk_factors | length }}</span></button>
+      </li>
+      <li class="tree-node">
+        <button type="button" class="tree-toggle" data-target="sec-focus"><span class="chev">▸</span> Review focus <span class="tree-badge">{{ result.review_focus | length }}</span></button>
+      </li>
+      <li class="tree-node">
+        <button type="button" class="tree-toggle" data-target="sec-actions"><span class="chev">▸</span> Actions <span class="tree-badge">{{ result.recommended_actions | length }}</span></button>
+      </li>
+      <li class="tree-node">
+        <button type="button" class="tree-toggle" data-target="sec-diffs"><span class="chev">▸</span> Diffs <span class="tree-badge">{{ files|length if files else 0 }}</span></button>
+      </li>
+      <li class="tree-node">
+        <button type="button" class="tree-toggle" data-target="sec-files"><span class="chev">▸</span> Critical files <span class="tree-badge">{{ result.critical_files_touched | length }}</span></button>
+      </li>
+      <li class="tree-node">
+        <button type="button" class="tree-toggle" data-target="sec-labels"><span class="chev">▸</span> Labels <span class="tree-badge">{{ result.suggested_labels | length }}</span></button>
+      </li>
+    </ul>
+    <button type="button" class="btn-ghost full" onclick="copyMd()">Copy full report</button>
+  </aside>
+
+  <div class="content-panel">
+    <section class="block" id="sec-overview">
+      <div class="block-head"><h2>Overview</h2><span class="block-tag">{{ result.primary_change_type.value }}</span></div>
+      <div class="block-body">
+        <p class="lead">{{ result.summary }}</p>
+        {% if result.key_changes %}
+        <div class="subhead">Key changes</div>
+        <ul class="bullet-list">{% for c in result.key_changes %}<li>{{ c }}</li>{% endfor %}</ul>
+        {% endif %}
+        {% if result.impact and (result.impact.areas or result.impact.requires_migration) %}
+        <div class="subhead">Impact</div>
+        <div class="impact-grid">
+          <div><span class="k">Areas</span><span class="v">{% if result.impact.areas %}{{ result.impact.areas | map(attribute='value') | join(', ') }}{% else %}—{% endif %}</span></div>
+          <div><span class="k">User-facing</span><span class="v">{{ "Yes" if result.impact.user_facing else "No" }}</span></div>
+          <div><span class="k">Migration</span><span class="v">{{ "Yes" if result.impact.requires_migration else "No" }}</span></div>
+          <div><span class="k">Rollback</span><span class="v">{{ result.impact.rollback_difficulty }}</span></div>
+        </div>
+        {% if result.impact.migration_notes %}<p class="note">{{ result.impact.migration_notes }}</p>{% endif %}
+        {% endif %}
+        {% if result.has_breaking_changes %}
+        <div class="callout warn"><strong>Breaking changes</strong><p>{{ result.breaking_notes or "This PR may introduce breaking changes." }}</p></div>
+        {% endif %}
+      </div>
+    </section>
+
+    <section class="block" id="sec-security">
+      <div class="block-head"><h2>Security Findings</h2><span class="block-tag">{{ result.security_findings | length }} items</span></div>
+      <div class="block-body">
+        {% if result.security_findings %}
+        <div class="accordion">
+          {% for sf in result.security_findings %}
+          <details class="acc-item sev-{{ sf.severity.value }}" id="sf-{{ loop.index }}" {% if loop.index <= 3 %}open{% endif %}>
+            <summary>
+              <span class="acc-sev">{{ sf.severity.value }}</span>
+              <span class="acc-cat">{{ sf.category }}</span>
+              <span class="acc-title">{{ sf.title }}</span>
+              {% if sf.file %}<span class="acc-file">{{ sf.file }}</span>{% endif %}
+            </summary>
+            <div class="acc-body">
+              <p>{{ sf.description }}</p>
+              <div class="rec"><div class="rec-label">Recommendation</div><p>{{ sf.recommendation }}</p></div>
+              {% if sf.cwe_hint %}<div class="cwe">{{ sf.cwe_hint }}</div>{% endif %}
+            </div>
+          </details>
+          {% endfor %}
+        </div>
+        {% else %}
+        <p class="muted">No heuristic or LLM security findings. Still review sensitive paths manually.</p>
+        {% endif %}
+        <p class="disclaimer">Heuristic + LLM-assisted. Not a replacement for SAST or dependency scanners.</p>
+      </div>
+    </section>
+
+    <section class="block" id="sec-suggestions">
+      <div class="block-head"><h2>Suggestions & Fixes</h2><span class="block-tag">{{ result.suggestions | length }} items</span></div>
+      <div class="block-body">
+        {% if result.suggestions %}
+        <div class="filter-row" id="sug-filters">
+          <button type="button" class="filter active" data-filter="all">All</button>
+          <button type="button" class="filter" data-filter="security">Security</button>
+          <button type="button" class="filter" data-filter="fix">Fix</button>
+          <button type="button" class="filter" data-filter="cleanup">Cleanup</button>
+          <button type="button" class="filter" data-filter="test">Test</button>
+          <button type="button" class="filter" data-filter="refactor">Refactor</button>
+        </div>
+        <div class="accordion">
+          {% for s in result.suggestions %}
+          <details class="acc-item sev-{{ s.severity.value }} sug-item" data-cat="{{ s.category.value }}" id="sug-{{ loop.index }}" {% if loop.index <= 4 %}open{% endif %}>
+            <summary>
+              <span class="acc-sev">{{ s.severity.value }}</span>
+              <span class="acc-cat">{{ s.category.value }}</span>
+              <span class="acc-title">{{ s.title }}</span>
+              <span class="acc-effort">{{ s.effort }} effort</span>
+            </summary>
+            <div class="acc-body">
+              <p>{{ s.description }}</p>
+              {% if s.file %}<div class="file-line">{{ s.file }}{% if s.line_hint %} · {{ s.line_hint }}{% endif %}</div>{% endif %}
+              {% if s.suggested_change %}<div class="code-suggest"><div class="code-label">Suggested change</div><pre>{{ s.suggested_change }}</pre></div>{% endif %}
+              {% if s.impact %}<p class="note">Impact: {{ s.impact }}</p>{% endif %}
+            </div>
+          </details>
+          {% endfor %}
+        </div>
+        {% else %}
+        <p class="muted">No structured suggestions.</p>
+        {% endif %}
+      </div>
+    </section>
+
+    <section class="block" id="sec-risk">
+      <div class="block-head"><h2>Risk Factors</h2><span class="block-tag">{{ result.risk_factors | length }}</span></div>
+      <div class="block-body">
+        {% if result.risk_factors %}
+        <div class="chain-list">
+          {% for rf in result.risk_factors %}
+          <div class="chain-item sev-{{ rf.severity.value }}">
+            <div class="chain-dot"></div>
+            <div class="chain-content">
+              <div class="chain-title">{{ rf.name }} <span class="pill">{{ rf.severity.value }}</span></div>
+              <p>{{ rf.explanation }}</p>
+              {% if rf.evidence %}<div class="evidence">{{ rf.evidence }}</div>{% endif %}
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+        {% else %}<p class="muted">None listed.</p>{% endif %}
+      </div>
+    </section>
+
+    <section class="block" id="sec-focus">
+      <div class="block-head"><h2>Review Focus</h2><span class="block-tag">Look here first</span></div>
+      <div class="block-body">
+        {% if result.review_focus %}
+        <ol class="focus-list">{% for x in result.review_focus %}<li>{{ x }}</li>{% endfor %}</ol>
+        {% else %}<p class="muted">None.</p>{% endif %}
+      </div>
+    </section>
+
+    <section class="block" id="sec-actions">
+      <div class="block-head"><h2>Recommended Actions</h2><span class="block-tag">{{ result.recommended_actions | length }}</span></div>
+      <div class="block-body">
+        {% if result.recommended_actions %}
+        <div class="action-list">
+          {% for a in result.recommended_actions %}
+          <div class="action-row prio-{{ a.priority }}">
+            <div class="action-prio">{{ a.priority }}</div>
+            <div class="action-main">
+              <div class="action-title">{{ a.action }}</div>
+              <p>{{ a.rationale }}</p>
+              {% if a.owner_hint %}<span class="owner">→ {{ a.owner_hint }}</span>{% endif %}
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+        {% else %}<p class="muted">None.</p>{% endif %}
+      </div>
+    </section>
+
+    
+    <section class="block" id="sec-diffs">
+      <div class="block-head"><h2>PR Diffs</h2><span class="block-tag">{{ files|length if files else 0 }} files</span></div>
+      <div class="block-body">
+        {% if files %}
+        <div class="accordion">
+          {% for f in files %}
+          <details class="acc-item" {% if loop.index <= 3 %}open{% endif %}>
+            <summary>
+              <span class="acc-cat">{{ f.status }}</span>
+              <span class="acc-title"><code>{{ f.filename }}</code></span>
+              <span class="acc-file">+{{ f.additions }} −{{ f.deletions }}</span>
+            </summary>
+            <div class="acc-body">
+              {% if f.patch %}
+              <pre class="diff-view">{% for line in f.patch.splitlines() %}{% if line.startswith('+') and not line.startswith('+++') %}<span class="diff-add">{{ line }}</span>
+{% elif line.startswith('-') and not line.startswith('---') %}<span class="diff-del">{{ line }}</span>
+{% elif line.startswith('@@') %}<span class="diff-hunk">{{ line }}</span>
+{% else %}<span class="diff-ctx">{{ line }}</span>
+{% endif %}{% endfor %}</pre>
+              {% else %}
+              <p class="muted">No textual patch (binary or empty).</p>
+              {% endif %}
+            </div>
+          </details>
+          {% endfor %}
+        </div>
+        <p class="disclaimer">Patches from GitHub API (truncated per file). Binary files may have no patch.</p>
+        {% else %}
+        <p class="muted">No file patches available for this PR (empty PR, API limits, or binary-only changes).</p>
+        {% endif %}
+      </div>
+    </section>
+
+    <section class="block" id="sec-files">
+      <div class="block-head"><h2>Critical Files</h2><span class="block-tag">{{ result.critical_files_touched | length }}</span></div>
+      <div class="block-body">
+        {% if result.critical_files_touched %}
+        <ul class="file-grid">{% for f in result.critical_files_touched %}<li><code>{{ f }}</code></li>{% endfor %}</ul>
+        {% else %}<p class="muted">None flagged.</p>{% endif %}
+      </div>
+    </section>
+
+    <section class="block" id="sec-labels">
+      <div class="block-head"><h2>Suggested Labels</h2></div>
+      <div class="block-body">
+        {% if result.suggested_labels %}
+        <div class="labels">{% for l in result.suggested_labels %}<span class="label-pill" title="{{ l.reason }}">{{ l.name }} <small>{{ (l.confidence*100)|int }}%</small></span>{% endfor %}</div>
+        {% else %}<p class="muted">None.</p>{% endif %}
+      </div>
+    </section>
+  </div>
+</div>
+
+<div id="raw-md" hidden>{{ markdown }}</div>
+<script>
+(function(){
+  const sevs = {critical:0, high:0, medium:0, low:0};
+  document.querySelectorAll('.acc-sev').forEach(el => {
+    const s = (el.textContent || '').trim().toLowerCase();
+    if (sevs[s] !== undefined) sevs[s]++;
+  });
+  ['crit','high','med','low'].forEach((id,i) => {
+    const k = ['critical','high','medium','low'][i];
+    const el = document.getElementById('c-'+id);
+    if (el) el.textContent = sevs[k];
+  });
+  document.querySelectorAll('.tree-toggle').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const id = btn.getAttribute('data-target');
+      const el = document.getElementById(id);
+      if (el) el.scrollIntoView({behavior:'smooth', block:'start'});
+      const node = btn.closest('.tree-node');
+      if (node) {
+        node.classList.toggle('open');
+        const chev = btn.querySelector('.chev');
+        if (chev) chev.textContent = node.classList.contains('open') ? '▾' : '▸';
+      }
+    });
+  });
+  document.querySelectorAll('#sug-filters .filter').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('#sug-filters .filter').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      const f = btn.getAttribute('data-filter');
+      document.querySelectorAll('.sug-item').forEach(item => {
+        item.style.display = (f === 'all' || item.getAttribute('data-cat') === f) ? '' : 'none';
+      });
+    });
+  });
+})();
+function copyMd(){
+  const t = document.getElementById('raw-md')?.textContent || '';
+  navigator.clipboard.writeText(t).then(()=>alert('Full report copied'));
+}
+</script>
+{% endif %}
+{% endblock %}

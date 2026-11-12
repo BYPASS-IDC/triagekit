@@ -1,0 +1,1 @@
+{"min_hits": 2, "require_any": ["java-exec", "java-deser", "command-injection", "unsafe-deserialization"]}

@@ -1,0 +1,116 @@
+{% extends "base.html" %}
+{% block title %}TriageKit — PR & Security Triage{% endblock %}
+{% block content %}
+<section class="hero">
+  <div class="hero-badge">PR triage · repository scan · web adviser · agent</div>
+  <h1 class="hero-title">Deep triage for<br/>open-source maintainers</h1>
+  <p class="hero-subtitle">
+    Multi-stage PR triage, repository security scanning, website surface analysis with safe probes,
+    and AI-assisted prioritization — structured findings maintainers can act on.
+  </p>
+</section>
+
+<div class="feature-row">
+  <div class="f-card">
+    <div class="f-num">01 // TRIAGE</div>
+    <h3>PR deep chain</h3>
+    <p>Static + security heuristics + structured LLM verdicts with risk blend.</p>
+  </div>
+  <div class="f-card">
+    <div class="f-num">02 // REPO</div>
+    <h3>Code forensics</h3>
+    <p>Injection, secrets, crypto, OSV/CVE, local paths &amp; GitHub targets.</p>
+  </div>
+  <div class="f-card">
+    <div class="f-num">03 // WEB</div>
+    <h3>Surface adviser</h3>
+    <p>Endpoints, leaks, JS sinks, cookies, redirect chains, safe probes.</p>
+  </div>
+  <div class="f-card">
+    <div class="f-num">04 // AGENT</div>
+    <h3>Priority playbook</h3>
+    <p>Attack-surface brief and ordered fixes for maintainers.</p>
+  </div>
+</div>
+
+<div class="dual-panels">
+  <section class="panel">
+    <div class="panel-head">
+      <h2>Module · PR triage</h2>
+      <p>Maximum-depth multi-stage analysis of a pull request</p>
+    </div>
+    <form action="/triage" method="post" id="form-triage">
+      <div class="form-grid">
+        <div class="field grow">
+          <label>Repository</label>
+          <input name="repo" placeholder="owner/repo" required spellcheck="false" />
+        </div>
+        <div class="field" style="width:7rem">
+          <label>PR #</label>
+          <input name="number" type="number" min="1" placeholder="652" required />
+        </div>
+      </div>
+      <button class="btn-primary" id="btn-triage" type="submit">
+        <span class="txt">Initialize triage</span>
+        <span class="load" hidden><span class="spinner"></span> Running chain…</span>
+      </button>
+    </form>
+  </section>
+
+  <section class="panel panel-scan">
+    <div class="panel-head">
+      <h2>Module · Code scan</h2>
+      <p>Local folder/file or GitHub repo — heuristics + OSV + agent</p>
+    </div>
+    <form action="/scan" method="post" id="form-scan">
+      <div class="field" style="margin-bottom:.65rem">
+        <label>Target</label>
+        <input name="target" placeholder="owner/repo or owner/repo@branch or local path" required spellcheck="false" />
+        <label class="check-row" style="margin-top:.4rem">Optional branch (overrides @branch in target)</label>
+        <input name="branch" placeholder="main, develop, feature/x" spellcheck="false" />
+      </div>
+      <label class="check-row"><input type="checkbox" name="no_cve" value="1" /> Skip CVE / OSV</label>
+      <label class="check-row"><input type="checkbox" name="no_agent" value="1" /> Skip AI security agent</label>
+      <button class="btn-primary" id="btn-scan" type="submit" style="margin-top:.75rem">
+        <span class="txt">Execute scan</span>
+        <span class="load" hidden><span class="spinner"></span> Scanning…</span>
+      </button>
+    </form>
+  </section>
+</div>
+
+<section class="panel" style="margin-top:.75rem">
+  <div class="panel-head">
+    <h2>Module · Website security adviser</h2>
+    <p>Discovery · leaks · safe probes · JS injuries · cookies · remediation playbook — authorized targets only</p>
+  </div>
+  <form action="/webscan" method="post" id="form-web">
+    <div class="field" style="margin-bottom:.65rem">
+      <label>Target URL</label>
+      <input name="url" placeholder="https://example.com" required spellcheck="false" />
+    </div>
+    <label class="check-row"><input type="checkbox" name="no_paths" value="1" /> Skip sensitive path checks</label>
+    <label class="check-row"><input type="checkbox" name="no_agent" value="1" /> Skip AI security agent</label>
+    <button class="btn-primary" id="btn-web" type="submit" style="margin-top:.75rem">
+      <span class="txt">Engage web adviser</span>
+      <span class="load" hidden><span class="spinner"></span> Probing surface…</span>
+    </button>
+    <p class="form-note">// passive markers + posture only · no weaponized exploitation</p>
+  </form>
+</section>
+
+<script>
+function wire(formId, btnId){
+  const f=document.getElementById(formId), b=document.getElementById(btnId);
+  if(!f||!b) return;
+  f.addEventListener('submit',()=>{
+    b.disabled=true;
+    const t=b.querySelector('.txt'), l=b.querySelector('.load');
+    if(t) t.hidden=true; if(l) l.hidden=false;
+  });
+}
+wire('form-triage','btn-triage');
+wire('form-scan','btn-scan');
+wire('form-web','btn-web');
+</script>
+{% endblock %}

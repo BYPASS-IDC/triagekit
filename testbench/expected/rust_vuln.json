@@ -1,0 +1,1 @@
+{"min_hits": 1, "require_any": ["rs-shell-command", "command-injection", "shell-injection"]}

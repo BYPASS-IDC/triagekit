@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>{% block title %}TriageKit{% endblock %}</title>
+  <link rel="stylesheet" href="/static/style.css" />
+  {% block extra_head %}{% endblock %}
+</head>
+<body>
+  <div class="app">
+    <header class="header">
+      <div class="header-inner">
+        <a href="/" class="logo"><span class="logo-mark">TK</span> TriageKit</a>
+        <span class="version">v{{ version }}</span>
+        <div class="header-status">
+          <span class="live">ONLINE</span>
+          <span>MULTI-LAYER ENGINE</span>
+        </div>
+      </div>
+    </header>
+    <main class="main">{% block content %}{% endblock %}</main>
+  </div>
+  {% block scripts %}{% endblock %}
+</body>
+</html>
